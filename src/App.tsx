@@ -44,7 +44,18 @@ function parseHTMLtoQuestion(html: string): QuestionData | null {
 }
 
 function App() {
-  const [questionNum, setQuestionNum] = useState(1);
+  // Domyślne pytanie to 1 lub to z URL param q
+  const getInitialQuestionNum = () => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q");
+    if (q) {
+      const num = parseInt(q);
+      if (!isNaN(num) && num > 0) return num;
+    }
+    return 1;
+  };
+
+  const [questionNum, setQuestionNum] = useState(getInitialQuestionNum);
   const [questionData, setQuestionData] = useState<QuestionData | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [wrongAnswers, setWrongAnswers] = useState<number[]>(() => {
@@ -55,7 +66,7 @@ function App() {
     const stored = localStorage.getItem("doneQuestions");
     return stored ? JSON.parse(stored) : [];
   });
-  const [history, setHistory] = useState<number[]>([1]);
+  const [history, setHistory] = useState<number[]>([questionNum]);
   const [inputQuestion, setInputQuestion] = useState<string>("");
 
   const saveWrongAnswers = (list: number[]) => {
@@ -66,6 +77,7 @@ function App() {
     localStorage.setItem("doneQuestions", JSON.stringify(list));
   };
 
+  // Funkcja ładująca pytanie i aktualizująca URL
   const loadQuestion = (value: number, direction: number) => {
     const formData = new URLSearchParams();
     formData.append("value", value.toString());
@@ -84,6 +96,14 @@ function App() {
           setQuestionNum(parsed.questionNum);
           setSelectedAnswer(null);
           setHistory((prev) => [...prev, parsed.questionNum]);
+          // Aktualizujemy URL bez przeładowania strony:
+          const newUrl =
+            window.location.protocol +
+            "//" +
+            window.location.host +
+            window.location.pathname +
+            `?q=${parsed.questionNum}`;
+          window.history.replaceState({ path: newUrl }, "", newUrl);
         } else {
           console.error("Nie udało się sparsować pytania");
         }
@@ -91,6 +111,7 @@ function App() {
       .catch(console.error);
   };
 
+  // Przy pierwszym renderze ładujemy pytanie z parametru lub 1
   useEffect(() => {
     loadQuestion(questionNum, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,6 +125,15 @@ function App() {
         const updatedWrong = [...wrongAnswers, questionNum];
         setWrongAnswers(updatedWrong);
         saveWrongAnswers(updatedWrong);
+
+        // Po błędnej odpowiedzi wymuszamy ustawienie URL na to pytanie
+        const newUrl =
+          window.location.protocol +
+          "//" +
+          window.location.host +
+          window.location.pathname +
+          `?q=${questionNum}`;
+        window.history.replaceState({ path: newUrl }, "", newUrl);
       }
     }
 
@@ -115,12 +145,12 @@ function App() {
   };
 
   const goToNext = () => {
-    loadQuestion(questionNum, 1);
+    loadQuestion(questionNum + 1, 1);
   };
 
   const goToPrevious = () => {
     if (questionNum > 1) {
-      loadQuestion(questionNum, -1);
+      loadQuestion(questionNum - 1, -1);
     }
   };
 
@@ -211,7 +241,10 @@ function App() {
         ) : (
           <ul>
             {wrongAnswers.map((q) => (
-              <li key={q}>Pytanie {q}</li>
+              <li key={q}>
+                {" "}
+                <a href={`/?q=${q}`}>Pytanie {q}</a>
+              </li>
             ))}
           </ul>
         )}
@@ -222,7 +255,9 @@ function App() {
         ) : (
           <ul>
             {doneQuestions.map((q) => (
-              <li key={q}>Pytanie {q}</li>
+              <li key={q}>
+                <a href={`/?q=${q}`}>Pytanie {q}</a>
+              </li>
             ))}
           </ul>
         )}
