@@ -1,0 +1,152 @@
+/* Ogólne tło i font */
+body {
+  background-color: #121212;
+  color: #ddd;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+.app-container {
+  display: flex;
+  max-width: 900px;
+  margin: 2rem auto;
+  gap: 20px;
+}
+
+/* Główna sekcja */
+main {
+  flex-grow: 1;
+}
+
+/* Input i button */
+.input-group {
+  margin-bottom: 15px;
+}
+
+input[type="number"] {
+  padding: 6px;
+  width: 80px;
+  margin-right: 10px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background-color: #222;
+  color: #ddd;
+}
+
+input[type="number"]::placeholder {
+  color: #888;
+}
+
+input[type="number"]:focus {
+  outline: none;
+  border-color: #3f88c5;
+  background-color: #333;
+}
+
+button {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: none;
+  background-color: #3f88c5;
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.3s;
+}
+
+button:hover:not(:disabled) {
+  background-color: #2f6aa7;
+}
+
+button:disabled {
+  background-color: #555;
+  cursor: not-allowed;
+}
+
+/* Tytuł pytania */
+h2 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+/* Pytanie - tytuł */
+.question-title {
+  font-weight: 700;
+  margin-bottom: 1rem;
+  min-height: 56px; /* stała wysokość, żeby się nie przeskakiwało */
+}
+
+/* Lista odpowiedzi */
+.answers-list > div {
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #444;
+  cursor: pointer;
+  background-color: #222;
+  color: #ddd;
+  user-select: none;
+  min-height: 44px; /* stała wysokość, mniej więcej */
+  display: flex;
+  align-items: center;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.answers-list > div:hover {
+  background-color: #333;
+}
+
+.answers-list > div.selected {
+  background-color: #4caf50; /* zieleń */
+  color: #111;
+  border-color: #388e3c;
+}
+
+/* Obrazek */
+.question-image {
+  margin-top: 1rem;
+  max-height: 200px;
+  object-fit: contain;
+  width: 100%;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background-color: #222;
+}
+
+/* Panel historii z prawej */
+.history-panel {
+  width: 220px;
+  padding: 10px;
+  border-radius: 8px;
+  background-color: #1e1e1e;
+  border: 1px solid #444;
+  height: fit-content;
+  font-size: 14px;
+  color: #ccc;
+}
+
+.history-panel h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #aaa;
+}
+
+/* Lista błędnych pytań */
+.history-panel ul {
+  padding-left: 20px;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.history-panel ul li {
+  cursor: pointer;
+  color: #e57373; /* delikatna czerwień */
+  padding: 4px 0;
+  transition: color 0.2s;
+}
+
+.history-panel ul li:hover {
+  color: #ef5350;
+}
