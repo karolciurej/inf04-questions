@@ -87,19 +87,25 @@ function App() {
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
             idp: (num + 1).toString(),
-            odp: "e",
+            odp: "evjhv",
           }).toString(),
         })
           .then((res) => res.text())
           .then((correctAnswer) => {
             console.log(correctAnswer);
-            const cleaned = correctAnswer
+            let cleaned = correctAnswer
               .trim()
               .toLowerCase()
               .split("h3")[1]
               .split("<")[0]
               .split("to ")[1];
-
+            if (!cleaned) {
+              cleaned = correctAnswer
+                .trim()
+                .toLowerCase()
+                .split("odpowiedź ")[1]
+                .split(" na pytanie")[0];
+            }
             parsed.correct = cleaned;
 
             setQuestionData(parsed);
