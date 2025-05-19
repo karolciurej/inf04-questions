@@ -92,18 +92,37 @@ function App() {
       .then((html) => {
         const parsed = parseHTMLtoQuestion(html);
         if (parsed) {
-          setQuestionData(parsed);
-          setQuestionNum(parsed.questionNum);
-          setSelectedAnswer(null);
-          setHistory((prev) => [...prev, parsed.questionNum]);
-          // Aktualizujemy URL bez przeładowania strony:
-          const newUrl =
-            window.location.protocol +
-            "//" +
-            window.location.host +
-            window.location.pathname +
-            `?q=${parsed.questionNum}`;
-          window.history.replaceState({ path: newUrl }, "", newUrl);
+          // Po załadowaniu pytania, pobieramy poprawną odpowiedź
+          const answerFormData = new URLSearchParams();
+          answerFormData.append("value", parsed.questionNum.toString());
+          answerFormData.append("var", direction.toString());
+
+          fetch("/api/inf04/teoria/jedno/loadanswer.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: answerFormData.toString(),
+          })
+            .then((res) => res.text())
+            .then((correctAnswer) => {
+              const cleaned = correctAnswer.trim().toLowerCase();
+              parsed.correct = cleaned; // np. 'b'
+
+              setQuestionData(parsed);
+              setQuestionNum(parsed.questionNum);
+              setSelectedAnswer(null);
+              setHistory((prev) => [...prev, parsed.questionNum]);
+
+              const newUrl =
+                window.location.protocol +
+                "//" +
+                window.location.host +
+                window.location.pathname +
+                `?q=${parsed.questionNum}`;
+              window.history.replaceState({ path: newUrl }, "", newUrl);
+            })
+            .catch((err) => {
+              console.error("Błąd pobierania poprawnej odpowiedzi:", err);
+            });
         } else {
           console.error("Nie udało się sparsować pytania");
         }
@@ -119,6 +138,8 @@ function App() {
 
   const handleAnswer = (letter: string) => {
     setSelectedAnswer(letter);
+    console.log("Wybrana odpowiedź:", letter);
+    console.log("Poprawna odpowiedź:", questionData?.correct);
 
     if (questionData && questionData.correct !== letter) {
       if (!wrongAnswers.includes(questionNum)) {
@@ -150,7 +171,7 @@ function App() {
 
   const goToPrevious = () => {
     if (questionNum > 1) {
-      loadQuestion(questionNum , -1);
+      loadQuestion(questionNum, -1);
     }
   };
 
@@ -176,24 +197,30 @@ function App() {
             <div className="question-title">{questionData.title}</div>
 
             <div className="answers-list">
-              {(["a", "b", "c", "d"] as const).map((letter) => (
-                <div
-                  key={letter}
-                  onClick={() => handleAnswer(letter)}
-                  className={`answer-item ${
-                    selectedAnswer === letter ? "selected" : ""
-                  } ${doneQuestions.includes(questionNum) ? "done" : ""}`}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ")
-                      handleAnswer(letter);
-                  }}
-                >
-                  <strong>{letter.toUpperCase()}.</strong>{" "}
-                  {questionData.answers[letter]}
-                </div>
-              ))}
+              {(["a", "b", "c", "d"] as const).map((letter) => {
+                const isSelected = selectedAnswer === letter;
+                const isCorrect = questionData.correct === letter;
+                const isWrong = isSelected && !isCorrect;
+
+                return (
+                  <div
+                    key={letter}
+                    onClick={() => handleAnswer(letter)}
+                    className={`answer-item ${
+                      isSelected ? (isWrong ? "wrong" : "correct") : ""
+                    } ${doneQuestions.includes(questionNum) ? "done" : ""}`}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ")
+                        handleAnswer(letter);
+                    }}
+                  >
+                    <strong>{letter.toUpperCase()}.</strong>{" "}
+                    {questionData.answers[letter]}
+                  </div>
+                );
+              })}
             </div>
 
             {questionData.image && (

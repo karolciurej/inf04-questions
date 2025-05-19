@@ -160,3 +160,29 @@ h2 {
 .answers-list > div.done:hover {
   background-color: #555; /* wyłącz efekt hover */
 }
+
+.answer-item {
+  padding: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  transition: background-color 0.3s, border-color 0.3s;
+}
+
+.answer-item.correct {
+  background-color: #d4edda; /* jasna zieleń */
+  border-color: #28a745; /* zieleń */
+  color: #155724;
+}
+
+.answer-item.wrong {
+  background-color: #f8d7da; /* jasny czerwony */
+  border-color: #dc3545; /* czerwony */
+  color: #721c24;
+}
+
+.answer-item:hover {
+  background-color: #e2e6ea;
+}
