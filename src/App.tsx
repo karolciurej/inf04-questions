@@ -5,7 +5,7 @@ type QuestionData = {
   title: string;
   answers: { a: string; b: string; c: string; d: string };
   image?: string;
-  correct?: string; // nie zawsze dostępne
+  correct?: string;
 };
 
 function parseHTMLtoQuestion(html: string): QuestionData | null {
@@ -14,15 +14,18 @@ function parseHTMLtoQuestion(html: string): QuestionData | null {
 
   const h3 = doc.querySelector("h3.onequestion");
   if (!h3) return null;
-  const questionNumMatch = h3.textContent?.match(/numer: (\d+)/);
-  const questionNum = questionNumMatch ? parseInt(questionNumMatch[1]) : 0;
+
+  const questionNumMatch = h3.textContent?.match(/pytanie (\d+)/i);
+  const questionNum = questionNumMatch ? parseInt(questionNumMatch[1]) - 1 : 0;
+
+  const correctMatch = h3.textContent?.match(/poprawna odpowiedź.*?([A-D])/i);
+  const correct = correctMatch ? correctMatch[1].toLowerCase() : undefined;
 
   const title = doc.querySelector("div.title")?.textContent?.trim() || "";
 
   const getAnswerText = (id: string) => {
     const el = doc.getElementById(id);
-    if (!el) return "";
-    return el.textContent?.replace(/^[A-D]\.\s*/, "").trim() || "";
+    return el?.textContent?.replace(/^[A-D]\.\s*/, "").trim() || "";
   };
 
   const answers = {
@@ -40,22 +43,12 @@ function parseHTMLtoQuestion(html: string): QuestionData | null {
     title,
     answers,
     image: imgSrc,
+    correct,
   };
 }
 
 function App() {
-  // Domyślne pytanie to 1 lub to z URL param q
-  const getInitialQuestionNum = () => {
-    const params = new URLSearchParams(window.location.search);
-    const q = params.get("q");
-    if (q) {
-      const num = parseInt(q);
-      if (!isNaN(num) && num > 0) return num;
-    }
-    return 1;
-  };
-
-  const [questionNum, setQuestionNum] = useState(getInitialQuestionNum);
+  const [questionNum, setQuestionNum] = useState(0);
   const [questionData, setQuestionData] = useState<QuestionData | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [wrongAnswers, setWrongAnswers] = useState<number[]>(() => {
@@ -66,22 +59,18 @@ function App() {
     const stored = localStorage.getItem("doneQuestions");
     return stored ? JSON.parse(stored) : [];
   });
-  const [history, setHistory] = useState<number[]>([questionNum]);
-  const [inputQuestion, setInputQuestion] = useState<string>("");
+  const [inputQuestion, setInputQuestion] = useState("");
 
-  const saveWrongAnswers = (list: number[]) => {
+  const saveWrongAnswers = (list: number[]) =>
     localStorage.setItem("wrongAnswers", JSON.stringify(list));
-  };
 
-  const saveDoneQuestions = (list: number[]) => {
+  const saveDoneQuestions = (list: number[]) =>
     localStorage.setItem("doneQuestions", JSON.stringify(list));
-  };
 
-  // Funkcja ładująca pytanie i aktualizująca URL
-  const loadQuestion = (value: number, direction: number) => {
+  const loadQuestion = (num: number) => {
     const formData = new URLSearchParams();
-    formData.append("value", value.toString());
-    formData.append("var", direction.toString());
+    formData.append("value", (num + 1).toString());
+    formData.append("var", "0");
 
     fetch("/api/inf04/teoria/jedno/loadquestion.php", {
       method: "POST",
@@ -91,98 +80,61 @@ function App() {
       .then((res) => res.text())
       .then((html) => {
         const parsed = parseHTMLtoQuestion(html);
-        if (parsed) {
-          // Po załadowaniu pytania, pobieramy poprawną odpowiedź
-          const answerFormData = new URLSearchParams();
-          answerFormData.append("value", parsed.questionNum.toString());
-          answerFormData.append("var", direction.toString());
+        if (!parsed) return;
 
-          fetch("/api/inf04/teoria/jedno/loadanswer.php", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: answerFormData.toString(),
-          })
-            .then((res) => res.text())
-            .then((correctAnswer) => {
-              const cleaned = correctAnswer.trim().toLowerCase();
-              parsed.correct = cleaned; // np. 'b'
+        fetch("/api/inf04/teoria/jedno/loadanswer.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            idp: (num + 1).toString(),
+            odp: "e",
+          }).toString(),
+        })
+          .then((res) => res.text())
+          .then((correctAnswer) => {
+            console.log(correctAnswer);
+            const cleaned = correctAnswer
+              .trim()
+              .toLowerCase()
+              .split("h3")[1]
+              .split("<")[0]
+              .split("to ")[1];
 
-              setQuestionData(parsed);
-              setQuestionNum(parsed.questionNum);
-              setSelectedAnswer(null);
-              setHistory((prev) => [...prev, parsed.questionNum]);
+            parsed.correct = cleaned;
 
-              const newUrl =
-                window.location.protocol +
-                "//" +
-                window.location.host +
-                window.location.pathname +
-                `?q=${parsed.questionNum}`;
-              window.history.replaceState({ path: newUrl }, "", newUrl);
-            })
-            .catch((err) => {
-              console.error("Błąd pobierania poprawnej odpowiedzi:", err);
-            });
-        } else {
-          console.error("Nie udało się sparsować pytania");
-        }
+            setQuestionData(parsed);
+            setSelectedAnswer(null);
+          });
       })
       .catch(console.error);
   };
 
-  // Przy pierwszym renderze ładujemy pytanie z parametru lub 1
   useEffect(() => {
-    loadQuestion(questionNum, 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    loadQuestion(questionNum);
+  }, [questionNum]);
 
   const handleAnswer = (letter: string) => {
     setSelectedAnswer(letter);
-    console.log("Wybrana odpowiedź:", letter);
-    console.log("Poprawna odpowiedź:", questionData?.correct);
 
     if (questionData && questionData.correct !== letter) {
       if (!wrongAnswers.includes(questionNum)) {
-        const updatedWrong = [...wrongAnswers, questionNum];
-        setWrongAnswers(updatedWrong);
-        saveWrongAnswers(updatedWrong);
-
-        // Po błędnej odpowiedzi wymuszamy ustawienie URL na to pytanie
-        const newUrl =
-          window.location.protocol +
-          "//" +
-          window.location.host +
-          window.location.pathname +
-          `?q=${questionNum}`;
-        window.history.replaceState({ path: newUrl }, "", newUrl);
+        const updated = [...wrongAnswers, questionNum];
+        setWrongAnswers(updated);
+        saveWrongAnswers(updated);
       }
     }
 
     if (!doneQuestions.includes(questionNum)) {
-      const updatedDone = [...doneQuestions, questionNum];
-      setDoneQuestions(updatedDone);
-      saveDoneQuestions(updatedDone);
+      const updated = [...doneQuestions, questionNum];
+      setDoneQuestions(updated);
+      saveDoneQuestions(updated);
     }
-  };
-
-  const goToNext = () => {
-    loadQuestion(questionNum, 1);
-  };
-
-  const goToPrevious = () => {
-    if (questionNum > 1) {
-      loadQuestion(questionNum, -1);
-    }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputQuestion(e.target.value);
   };
 
   const handleJumpToQuestion = () => {
     const num = parseInt(inputQuestion);
-    if (num > 0) {
-      loadQuestion(num, 0);
+    if (!isNaN(num) && num > 0) {
+      setQuestionNum(num - 1);
       setInputQuestion("");
     }
   };
@@ -190,7 +142,7 @@ function App() {
   return (
     <div className="app-container">
       <div className="main-content">
-        <h2>Pytanie {questionNum}</h2>
+        <h2>Pytanie {questionNum + 1}</h2>
 
         {questionData ? (
           <>
@@ -216,7 +168,7 @@ function App() {
                         handleAnswer(letter);
                     }}
                   >
-                    <strong>{letter.toUpperCase()}.</strong>{" "}
+                    {" "}
                     {questionData.answers[letter]}
                   </div>
                 );
@@ -237,10 +189,15 @@ function App() {
             )}
 
             <div className="btn-group" style={{ marginTop: "10px" }}>
-              <button onClick={goToPrevious} disabled={questionNum === 1}>
+              <button
+                onClick={() => setQuestionNum(Math.max(0, questionNum - 1))}
+              >
                 Wstecz
               </button>
-              <button onClick={goToNext} style={{ marginLeft: "10px" }}>
+              <button
+                onClick={() => setQuestionNum(questionNum + 1)}
+                style={{ marginLeft: "10px" }}
+              >
                 Dalej
               </button>
             </div>
@@ -250,7 +207,7 @@ function App() {
                 type="number"
                 placeholder="Numer pytania"
                 value={inputQuestion}
-                onChange={handleInputChange}
+                onChange={(e) => setInputQuestion(e.target.value)}
                 min={1}
               />
               <button onClick={handleJumpToQuestion}>Idź do pytania</button>
@@ -269,8 +226,9 @@ function App() {
           <ul>
             {wrongAnswers.map((q) => (
               <li key={q}>
-                {" "}
-                <a href={`/?q=${q}`}>Pytanie {q}</a>
+                <button onClick={() => setQuestionNum(q)}>
+                  Pytanie {q + 1}
+                </button>
               </li>
             ))}
           </ul>
@@ -283,7 +241,9 @@ function App() {
           <ul>
             {doneQuestions.map((q) => (
               <li key={q}>
-                <a href={`/?q=${q}`}>Pytanie {q}</a>
+                <button onClick={() => setQuestionNum(q)}>
+                  Pytanie {q + 1}
+                </button>
               </li>
             ))}
           </ul>
