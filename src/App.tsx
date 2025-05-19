@@ -145,12 +145,12 @@ function App() {
   };
 
   const goToNext = () => {
-    loadQuestion(questionNum + 1, 1);
+    loadQuestion(questionNum, 1);
   };
 
   const goToPrevious = () => {
     if (questionNum > 1) {
-      loadQuestion(questionNum - 1, -1);
+      loadQuestion(questionNum , -1);
     }
   };
 
