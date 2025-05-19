@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
-import "./App.css";
 
 type QuestionData = {
   questionNum: number;
   title: string;
   answers: { a: string; b: string; c: string; d: string };
   image?: string;
-  correct?: string;
+  correct?: string; // nie zawsze dostępne
 };
 
 function parseHTMLtoQuestion(html: string): QuestionData | null {
@@ -52,10 +51,19 @@ function App() {
     const stored = localStorage.getItem("wrongAnswers");
     return stored ? JSON.parse(stored) : [];
   });
-  const [inputValue, setInputValue] = useState<string>("1");
+  const [doneQuestions, setDoneQuestions] = useState<number[]>(() => {
+    const stored = localStorage.getItem("doneQuestions");
+    return stored ? JSON.parse(stored) : [];
+  });
+  const [history, setHistory] = useState<number[]>([1]);
+  const [inputQuestion, setInputQuestion] = useState<string>("");
 
   const saveWrongAnswers = (list: number[]) => {
     localStorage.setItem("wrongAnswers", JSON.stringify(list));
+  };
+
+  const saveDoneQuestions = (list: number[]) => {
+    localStorage.setItem("doneQuestions", JSON.stringify(list));
   };
 
   const loadQuestion = (value: number, direction: number) => {
@@ -75,7 +83,7 @@ function App() {
           setQuestionData(parsed);
           setQuestionNum(parsed.questionNum);
           setSelectedAnswer(null);
-          setInputValue(parsed.questionNum.toString());
+          setHistory((prev) => [...prev, parsed.questionNum]);
         } else {
           console.error("Nie udało się sparsować pytania");
         }
@@ -85,16 +93,24 @@ function App() {
 
   useEffect(() => {
     loadQuestion(questionNum, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAnswer = (letter: string) => {
     setSelectedAnswer(letter);
+
     if (questionData && questionData.correct !== letter) {
       if (!wrongAnswers.includes(questionNum)) {
-        const updated = [...wrongAnswers, questionNum];
-        setWrongAnswers(updated);
-        saveWrongAnswers(updated);
+        const updatedWrong = [...wrongAnswers, questionNum];
+        setWrongAnswers(updatedWrong);
+        saveWrongAnswers(updatedWrong);
       }
+    }
+
+    if (!doneQuestions.includes(questionNum)) {
+      const updatedDone = [...doneQuestions, questionNum];
+      setDoneQuestions(updatedDone);
+      saveDoneQuestions(updatedDone);
     }
   };
 
@@ -109,38 +125,21 @@ function App() {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
+    setInputQuestion(e.target.value);
   };
 
-  const handleGoToQuestion = () => {
-    const num = parseInt(inputValue);
-    if (!isNaN(num) && num > 0) {
+  const handleJumpToQuestion = () => {
+    const num = parseInt(inputQuestion);
+    if (num > 0) {
       loadQuestion(num, 0);
+      setInputQuestion("");
     }
-  };
-
-  const handleWrongClick = (num: number) => {
-    loadQuestion(num, 0);
   };
 
   return (
     <div className="app-container">
-      <main>
+      <div className="main-content">
         <h2>Pytanie {questionNum}</h2>
-
-        <div className="input-group">
-          <input
-            type="number"
-            min={1}
-            value={inputValue}
-            onChange={handleInputChange}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleGoToQuestion();
-            }}
-            placeholder="Numer pytania"
-          />
-          <button onClick={handleGoToQuestion}>Idź do pytania</button>
-        </div>
 
         {questionData ? (
           <>
@@ -151,7 +150,9 @@ function App() {
                 <div
                   key={letter}
                   onClick={() => handleAnswer(letter)}
-                  className={selectedAnswer === letter ? "selected" : ""}
+                  className={`answer-item ${
+                    selectedAnswer === letter ? "selected" : ""
+                  } ${doneQuestions.includes(questionNum) ? "done" : ""}`}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -166,47 +167,66 @@ function App() {
             </div>
 
             {questionData.image && (
-              <img
-                src={
-                  questionData.image.startsWith("http")
-                    ? questionData.image
-                    : `https://www.praktycznyegzamin.pl/inf04/teoria/jedno/${questionData.image}`
-                }
-                alt="ilustracja do pytania"
-                className="question-image"
-              />
+              <div className="image-container">
+                <img
+                  src={
+                    questionData.image.startsWith("http")
+                      ? questionData.image
+                      : `https://www.praktycznyegzamin.pl/inf04/teoria/jedno/${questionData.image}`
+                  }
+                  alt="ilustracja do pytania"
+                />
+              </div>
             )}
 
-            <div style={{ marginTop: "2rem", display: "flex", gap: "1rem" }}>
+            <div className="btn-group" style={{ marginTop: "10px" }}>
               <button onClick={goToPrevious} disabled={questionNum === 1}>
                 Wstecz
               </button>
-              <button onClick={goToNext}>Dalej</button>
+              <button onClick={goToNext} style={{ marginLeft: "10px" }}>
+                Dalej
+              </button>
+            </div>
+
+            <div className="jump-input" style={{ marginTop: "10px" }}>
+              <input
+                type="number"
+                placeholder="Numer pytania"
+                value={inputQuestion}
+                onChange={handleInputChange}
+                min={1}
+              />
+              <button onClick={handleJumpToQuestion}>Idź do pytania</button>
             </div>
           </>
         ) : (
           <p>Ładowanie pytania...</p>
         )}
-      </main>
+      </div>
 
-      <aside className="history-panel">
-        <h4>Niepoprawne odpowiedzi</h4>
+      <div className="side-panel">
+        <h4>Niepoprawne odpowiedzi:</h4>
         {wrongAnswers.length === 0 ? (
           <p>Brak</p>
         ) : (
           <ul>
             {wrongAnswers.map((q) => (
-              <li
-                key={q}
-                onClick={() => handleWrongClick(q)}
-                title="Kliknij, aby przejść do pytania"
-              >
-                Pytanie {q}
-              </li>
+              <li key={q}>Pytanie {q}</li>
             ))}
           </ul>
         )}
-      </aside>
+
+        <h4>Zrobione pytania:</h4>
+        {doneQuestions.length === 0 ? (
+          <p>Brak</p>
+        ) : (
+          <ul>
+            {doneQuestions.map((q) => (
+              <li key={q}>Pytanie {q}</li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

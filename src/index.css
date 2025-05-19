@@ -150,3 +150,13 @@ h2 {
 .history-panel ul li:hover {
   color: #ef5350;
 }
+
+.answers-list > div.done {
+  background-color: #555 !important; /* ciemniejsze tło niż normalne */
+  color: #bbb !important;
+  cursor: default;
+}
+
+.answers-list > div.done:hover {
+  background-color: #555; /* wyłącz efekt hover */
+}
