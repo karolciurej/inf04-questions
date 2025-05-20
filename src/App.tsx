@@ -5,6 +5,7 @@ type QuestionData = {
   title: string;
   answers: { a: string; b: string; c: string; d: string };
   image?: string;
+  video?: string;
   correct?: string;
 };
 
@@ -37,12 +38,15 @@ function parseHTMLtoQuestion(html: string): QuestionData | null {
 
   const imgSrc =
     doc.querySelector("div.image img")?.getAttribute("src") || undefined;
+  const videoSrc =
+    doc.querySelector("source")?.getAttribute("src") || undefined;
 
   return {
     questionNum,
     title,
     answers,
     image: imgSrc,
+    video: videoSrc,
     correct,
   };
 }
@@ -79,6 +83,7 @@ function App() {
     })
       .then((res) => res.text())
       .then((html) => {
+        console.log(html);
         const parsed = parseHTMLtoQuestion(html);
         if (!parsed) return;
 
@@ -92,7 +97,6 @@ function App() {
         })
           .then((res) => res.text())
           .then((correctAnswer) => {
-            console.log(correctAnswer);
             let cleaned = correctAnswer
               .trim()
               .toLowerCase()
@@ -191,6 +195,21 @@ function App() {
                   }
                   alt="ilustracja do pytania"
                 />
+              </div>
+            )}
+            {questionData.video && (
+              <div className="video-container">
+                <video controls>
+                  <source
+                    src={
+                      questionData.video.startsWith("http")
+                        ? questionData.video
+                        : `https://www.praktycznyegzamin.pl/inf04/teoria/jedno/${questionData.video}`
+                    }
+                    type="video/mp4"
+                  />
+                  Your browser does not support the video tag.
+                </video>
               </div>
             )}
 
