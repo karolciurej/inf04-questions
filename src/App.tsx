@@ -244,7 +244,7 @@ function App() {
       </div>
 
       <div className="side-panel">
-        <h4>Niepoprawne odpowiedzi:</h4>
+        <h4>Niepoprawne odpowiedzi {wrongAnswers.length}:</h4>
         {wrongAnswers.length === 0 ? (
           <p>Brak</p>
         ) : (
