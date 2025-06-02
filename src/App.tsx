@@ -1,55 +1,10 @@
 import { useEffect, useState } from "react";
-
-type QuestionData = {
-  questionNum: number;
-  title: string;
-  answers: { a: string; b: string; c: string; d: string };
-  image?: string;
-  video?: string;
-  correct?: string;
-};
-
-function parseHTMLtoQuestion(html: string): QuestionData | null {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
-
-  const h3 = doc.querySelector("h3.onequestion");
-  if (!h3) return null;
-
-  const questionNumMatch = h3.textContent?.match(/pytanie (\d+)/i);
-  const questionNum = questionNumMatch ? parseInt(questionNumMatch[1]) - 1 : 0;
-
-  const correctMatch = h3.textContent?.match(/poprawna odpowiedź.*?([A-D])/i);
-  const correct = correctMatch ? correctMatch[1].toLowerCase() : undefined;
-
-  const title = doc.querySelector("div.title")?.textContent?.trim() || "";
-
-  const getAnswerText = (id: string) => {
-    const el = doc.getElementById(id);
-    return el?.textContent?.replace(/^[A-D]\.\s*/, "").trim() || "";
-  };
-
-  const answers = {
-    a: getAnswerText("odpa"),
-    b: getAnswerText("odpb"),
-    c: getAnswerText("odpc"),
-    d: getAnswerText("odpd"),
-  };
-
-  const imgSrc =
-    doc.querySelector("div.image img")?.getAttribute("src") || undefined;
-  const videoSrc =
-    doc.querySelector("source")?.getAttribute("src") || undefined;
-
-  return {
-    questionNum,
-    title,
-    answers,
-    image: imgSrc,
-    video: videoSrc,
-    correct,
-  };
-}
+import {
+  parseHTMLtoQuestion,
+  type QuestionData,
+} from "./utils/parseHtmlToQuestion";
+import QuestionViewer from "./components/questionViewer";
+import SidePanel from "./components/SidePanel";
 
 function App() {
   const [questionNum, setQuestionNum] = useState(0);
@@ -64,10 +19,26 @@ function App() {
     return stored ? JSON.parse(stored) : [];
   });
   const [inputQuestion, setInputQuestion] = useState("");
+  const [mode, setMode] = useState<"standard" | "wrong">("standard");
+  const [wrongIndex, setWrongIndex] = useState(0);
+  const goToNext = () => {
+    if (mode === "standard") {
+      setQuestionNum((prev) => prev + 1);
+    } else {
+      setWrongIndex((prev) => Math.min(prev + 1, wrongAnswers.length - 1));
+    }
+  };
+
+  const goToPrev = () => {
+    if (mode === "standard") {
+      setQuestionNum((prev) => Math.max(0, prev - 1));
+    } else {
+      setWrongIndex((prev) => Math.max(0, prev - 1));
+    }
+  };
 
   const saveWrongAnswers = (list: number[]) =>
     localStorage.setItem("wrongAnswers", JSON.stringify(list));
-
   const saveDoneQuestions = (list: number[]) =>
     localStorage.setItem("doneQuestions", JSON.stringify(list));
 
@@ -83,7 +54,6 @@ function App() {
     })
       .then((res) => res.text())
       .then((html) => {
-        console.log(html);
         const parsed = parseHTMLtoQuestion(html);
         if (!parsed) return;
 
@@ -101,17 +71,18 @@ function App() {
               .trim()
               .toLowerCase()
               .split("h3")[1]
-              .split("<")[0]
-              .split("to ")[1];
+              ?.split("<")[0]
+              ?.split("to ")[1];
+
             if (!cleaned) {
               cleaned = correctAnswer
                 .trim()
                 .toLowerCase()
                 .split("odpowiedź ")[1]
-                .split(" na pytanie")[0];
+                ?.split(" na pytanie")[0];
             }
-            parsed.correct = cleaned;
 
+            parsed.correct = cleaned;
             setQuestionData(parsed);
             setSelectedAnswer(null);
           });
@@ -120,8 +91,12 @@ function App() {
   };
 
   useEffect(() => {
-    loadQuestion(questionNum);
-  }, [questionNum]);
+    if (mode === "standard") {
+      loadQuestion(questionNum);
+    } else if (mode === "wrong" && wrongAnswers.length > 0) {
+      loadQuestion(wrongAnswers[wrongIndex]);
+    }
+  }, [questionNum, wrongIndex, mode]);
 
   const handleAnswer = (letter: string) => {
     setSelectedAnswer(letter);
@@ -152,128 +127,54 @@ function App() {
   return (
     <div className="app-container">
       <div className="main-content">
-        <h2>Pytanie {questionNum + 1}</h2>
-
+        <div style={{ marginTop: "20px" }}>
+          <button onClick={() => setMode("standard")}>Tryb standardowy</button>
+          <button
+            onClick={() => {
+              if (wrongAnswers.length > 0) {
+                setMode("wrong");
+                setWrongIndex(0);
+              } else {
+                alert("Brak błędnych odpowiedzi.");
+              }
+            }}
+            style={{ marginLeft: "10px" }}
+          >
+            Test z błędnych odpowiedzi
+          </button>
+        </div>
+        <h2>
+          Pytanie{" "}
+          {mode === "standard" ? questionNum + 1 : wrongAnswers[wrongIndex] + 1}
+        </h2>
         {questionData ? (
-          <>
-            <div className="question-title">{questionData.title}</div>
-
-            <div className="answers-list">
-              {(["a", "b", "c", "d"] as const).map((letter) => {
-                const isSelected = selectedAnswer === letter;
-                const isCorrect = questionData.correct === letter;
-                const isWrong = isSelected && !isCorrect;
-
-                return (
-                  <div
-                    key={letter}
-                    onClick={() => handleAnswer(letter)}
-                    className={`answer-item ${
-                      isSelected ? (isWrong ? "wrong" : "correct") : ""
-                    } ${doneQuestions.includes(questionNum) ? "done" : ""}`}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ")
-                        handleAnswer(letter);
-                    }}
-                  >
-                    {" "}
-                    {questionData.answers[letter]}
-                  </div>
-                );
-              })}
-            </div>
-
-            {questionData.image && (
-              <div className="image-container">
-                <img
-                  src={
-                    questionData.image.startsWith("http")
-                      ? questionData.image
-                      : `https://www.praktycznyegzamin.pl/inf04/teoria/jedno/${questionData.image}`
-                  }
-                  alt="ilustracja do pytania"
-                />
-              </div>
-            )}
-            {questionData.video && (
-              <div className="video-container">
-                <video controls>
-                  <source
-                    src={
-                      questionData.video.startsWith("http")
-                        ? questionData.video
-                        : `https://www.praktycznyegzamin.pl/inf04/teoria/jedno/${questionData.video}`
-                    }
-                    type="video/mp4"
-                  />
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-            )}
-
-            <div className="btn-group" style={{ marginTop: "10px" }}>
-              <button
-                onClick={() => setQuestionNum(Math.max(0, questionNum - 1))}
-              >
-                Wstecz
-              </button>
-              <button
-                onClick={() => setQuestionNum(questionNum + 1)}
-                style={{ marginLeft: "10px" }}
-              >
-                Dalej
-              </button>
-            </div>
-
-            <div className="jump-input" style={{ marginTop: "10px" }}>
-              <input
-                type="number"
-                placeholder="Numer pytania"
-                value={inputQuestion}
-                onChange={(e) => setInputQuestion(e.target.value)}
-                min={1}
-              />
-              <button onClick={handleJumpToQuestion}>Idź do pytania</button>
-            </div>
-          </>
+          <QuestionViewer
+            questionNum={
+              mode === "standard" ? questionNum : wrongAnswers[wrongIndex]
+            }
+            questionData={questionData}
+            selectedAnswer={selectedAnswer}
+            onAnswer={handleAnswer}
+            doneQuestions={doneQuestions}
+            inputQuestion={inputQuestion}
+            setInputQuestion={setInputQuestion}
+            onNext={goToNext}
+            onBack={goToPrev}
+            onJump={handleJumpToQuestion}
+          />
         ) : (
           <p>Ładowanie pytania...</p>
         )}
       </div>
 
-      <div className="side-panel">
-        <h4>Niepoprawne odpowiedzi {wrongAnswers.length}:</h4>
-        {wrongAnswers.length === 0 ? (
-          <p>Brak</p>
-        ) : (
-          <ul>
-            {wrongAnswers.map((q) => (
-              <li key={q}>
-                <button onClick={() => setQuestionNum(q)}>
-                  Pytanie {q + 1}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <h4>Zrobione pytania:</h4>
-        {doneQuestions.length === 0 ? (
-          <p>Brak</p>
-        ) : (
-          <ul>
-            {doneQuestions.map((q) => (
-              <li key={q}>
-                <button onClick={() => setQuestionNum(q)}>
-                  Pytanie {q + 1}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <SidePanel
+        wrongAnswers={wrongAnswers}
+        doneQuestions={doneQuestions}
+        onJumpToQuestion={(q) => {
+          setMode("standard");
+          setQuestionNum(q);
+        }}
+      />
     </div>
   );
 }
